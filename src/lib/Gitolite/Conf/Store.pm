@@ -156,7 +156,7 @@ sub new_repos {
     # normal repos
     my @repos = grep { $_ =~ $REPONAME_PATT and not /^@/ } sort keys %repos;
     # add in members of repo groups
-    map { push @repos, keys %{ $groups{$_} } } grep { /^@/ } keys %repos;
+    map { push @repos, keys %{ $groups{$_} } } grep { /^@/ and $_ ne '@all' } keys %repos;
 
     for my $repo ( @{ sort_u( \@repos ) } ) {
         next unless $repo =~ $REPONAME_PATT;    # skip repo patterns
@@ -191,7 +191,6 @@ sub new_wild_repo {
     trigger( 'PRE_CREATE', $repo, $user, $aa );
     new_repo($repo);
     _print( "$repo.git/gl-creator", $user );
-    _print( "$repo.git/gl-perms", ( $rc{DEFAULT_ROLE_PERMS} ? "$rc{DEFAULT_ROLE_PERMS}\n" : "" ) );
     trigger( 'POST_CREATE', $repo, $user, $aa );
 
     _chdir( $rc{GL_ADMIN_BASE} );
@@ -311,8 +310,7 @@ sub store_common {
         }
     }
 
-    $dumped_data = Data::Dumper->Dump( [ \%patterns ], [qw(*patterns)] ) if %patterns;
-    print $compiled_fh $dumped_data;
+    print $compiled_fh Data::Dumper->Dump( [ \%patterns ], [qw(*patterns)] ) if %patterns;
 
     print $compiled_fh Data::Dumper->Dump( [ \%split_conf ], [qw(*split_conf)] ) if %split_conf;
 

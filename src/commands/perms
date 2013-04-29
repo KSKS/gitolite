@@ -5,7 +5,7 @@ use warnings;
 use lib $ENV{GL_LIBDIR};
 use Gitolite::Rc;
 use Gitolite::Common;
-use Gitolite::Conf::Load;
+use Gitolite::Easy;
 
 =for usage
 Usage:  ssh git@host perms -l <repo>
@@ -36,6 +36,8 @@ usage() if not @ARGV or $ARGV[0] eq '-h';
 
 $ENV{GL_USER} or _die "GL_USER not set";
 
+my $generic_error = "repo does not exist, or you are not authorised";
+
 my $list = 0;
 if ( $ARGV[0] eq '-l' ) {
     $list++;
@@ -46,12 +48,12 @@ if ( $ARGV[0] eq '-l' ) {
 # auto-create the repo if -c passed and repo doesn't exist
 if ( $ARGV[0] eq '-c' ) {
     shift;
-    my $repo = $ARGV[0];
+    my $repo = $ARGV[0] or usage();
     _die "invalid repo '$repo'" unless $repo =~ $REPONAME_PATT;
 
     if (not -d "$rc{GL_REPO_BASE}/$repo.git") {
-        my $ret = access( $repo, $ENV{GL_USER}, '^C', 'any' );
-        _die $ret if $ret =~ /DENIED/;
+        my $ret = Gitolite::Conf::Load::access( $repo, $ENV{GL_USER}, '^C', 'any' );
+        _die $generic_error if $ret =~ /DENIED/;
 
         require Gitolite::Conf::Store;
         Gitolite::Conf::Store->import;
@@ -68,7 +70,7 @@ _system( "gitolite", "trigger", "POST_CREATE", $repo, $ENV{GL_USER}, 'perms' );
 
 sub getperms {
     my $repo = shift;
-    _die "sorry you are not authorised" if repo_missing($repo) or creator($repo) ne $ENV{GL_USER};
+    _die $generic_error if not owns($repo);
     my $pf = "$rc{GL_REPO_BASE}/$repo.git/gl-perms";
 
     print slurp($pf) if -f $pf;
@@ -77,17 +79,20 @@ sub getperms {
 }
 
 sub setperms {
-    _die "sorry you are not authorised" if repo_missing($repo) or creator($repo) ne $ENV{GL_USER};
+    _die $generic_error if not owns($repo);
     my $pf = "$rc{GL_REPO_BASE}/$repo.git/gl-perms";
 
     if ( not @_ ) {
         # legacy mode; pipe data in
+        print STDERR "'batch' mode started, waiting for input (run with '-h' for details).\n";
+        print STDERR "Please hit Ctrl-C if you did not intend to do this.\n";
         @ARGV = ();
         my @a;
         for (<>) {
             _die "Invalid role '$1'; check the rc file" if /(\S+)/ and not $rc{ROLES}{$1};
             push @a, $_;
         }
+        print STDERR "\n";  # make sure Ctrl-C gets caught
         _print( $pf, @a );
         return;
     }
