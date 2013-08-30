@@ -1,4 +1,5 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
+
 require 'fileutils'
 
 # Redirect to stderr so it will show up in user console. stdout causes protocol error
